@@ -107,7 +107,10 @@ meta, zones, metrics = d['meta'], d['zones'], d['metrics']
 best, hour = metrics.loc['sklearn_hgb', 'mae'], metrics.loc['last_hour', 'mae']
 
 st.sidebar.title('🚕 NYC Taxi 2025')
-page = st.sidebar.radio('Halaman', ['Ringkasan', 'Prediksi Demand', 'Jaringan Mobilitas', 'Insight Bisnis'])
+PAGES = {'ringkasan': 'Ringkasan', 'prediksi': 'Prediksi Demand', 'jaringan': 'Jaringan Mobilitas',
+         'insight': 'Insight Bisnis'}
+start = list(PAGES).index(st.query_params.get('page')) if st.query_params.get('page') in PAGES else 0
+page = st.sidebar.radio('Halaman', list(PAGES.values()), index=start)  # ?page=insight opens a page directly
 st.sidebar.markdown('---')
 st.sidebar.caption(f"Data: NYC TLC Yellow Taxi Jan–Des 2025. Hasil dari run pipeline `{meta['run']}` "
                    '(Spark + MinIO + Neo4j), sama dengan laporan.')
