@@ -1,4 +1,6 @@
-streamlit==1.50.0
-plotly==6.3.0
-pandas==2.3.3
-pyarrow==21.0.0
+# Ranges, not exact pins, so Streamlit Cloud can pick wheels for its Python version.
+# Tested with both ends: streamlit 1.50/1.66, plotly 6.3/6.9, pandas 2.3/3.1, pyarrow 21/26.
+streamlit>=1.50,<2
+plotly>=6.3,<7
+pandas>=2.3,<4
+pyarrow>=21
