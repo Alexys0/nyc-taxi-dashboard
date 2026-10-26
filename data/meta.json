@@ -1,0 +1,87 @@
+{
+  "run": "20261025T004523Z",
+  "graph": {
+    "nodes": 263,
+    "edges_with_loops": 54525,
+    "edges_without_loops": 54273,
+    "total_trips": 46395222,
+    "self_loop_trips": 1659108,
+    "communities": 5,
+    "community_sizes": [
+      193,
+      35,
+      33,
+      1,
+      1
+    ],
+    "modularity": 0.21844533545269643,
+    "reciprocity": 0.9390304571333813,
+    "pagerank_sum": 1.0000000000000002
+  },
+  "eda": {
+    "train_zone_hours": 1488580,
+    "zero_share_pct": 39.81788012736971,
+    "variance_to_mean": 161.62648670125216,
+    "p99": 286.0,
+    "top20_zone_share_pct": 57.855653888367414,
+    "acf_lag1": 0.9286545425650018,
+    "acf_lag24": 0.8584464099305196,
+    "acf_lag168": 0.8900251614283172
+  },
+  "timings": {
+    "sklearn_refit_seconds": 56.689076100010425,
+    "sklearn_predict_seconds": 4.074497000081465,
+    "spark_refit_seconds": 141.6294096999336,
+    "spark_predict_seconds": 1.325973799917847,
+    "refit_rows": 1696876,
+    "test_rows": 339796
+  },
+  "spark_seed_scores": {
+    "2025": {
+      "rows": 339796,
+      "mae": 3.9477505136184963,
+      "rmse": 11.595232372404226,
+      "wape_pct": 18.856424656321547,
+      "bias": -0.37625443081318416
+    },
+    "2026": {
+      "rows": 339796,
+      "mae": 3.9661031497373536,
+      "rmse": 11.578918725838642,
+      "wape_pct": 18.944085996374906,
+      "bias": -0.2892447890900707
+    },
+    "2027": {
+      "rows": 339796,
+      "mae": 3.983541646269831,
+      "rmse": 11.817744409273038,
+      "wape_pct": 19.027380950007316,
+      "bias": -0.37819077020374264
+    }
+  },
+  "selection": {
+    "sklearn": {
+      "learning_rate": 0.05,
+      "max_leaf_nodes": 63,
+      "max_iter": 500
+    },
+    "spark": {
+      "maxDepth": 7,
+      "maxIter": 60
+    },
+    "criterion": "lowest validation MAE (models fitted on Jan\u2013Aug)",
+    "validation_trials_sha256": {
+      "sklearn_validation_trials.csv": "22aad9e310f449f02ac1bad24d3c3b60b9292e0aed55a44631858671710d80e6",
+      "spark_validation_trials.csv": "95b7be1719f88023876590c6b1f7e9973ad99392c908c1bffb07d8690a38fee4"
+    },
+    "frozen_at_utc": "2026-10-25T00:53:31.917676+00:00"
+  },
+  "airport_manhattan_share_pct": {
+    "JFK Airport": 54.21,
+    "LaGuardia Airport": 73.62
+  },
+  "neo4j_checks_passed": true,
+  "raw_trips": 48722602,
+  "clean_trips": 46643005,
+  "valid_od_trips": 46395222
+}
