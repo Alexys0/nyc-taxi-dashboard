@@ -111,9 +111,6 @@ PAGES = {'ringkasan': 'Ringkasan', 'prediksi': 'Prediksi Demand', 'jaringan': 'J
          'insight': 'Insight Bisnis'}
 start = list(PAGES).index(st.query_params.get('page')) if st.query_params.get('page') in PAGES else 0
 page = st.sidebar.radio('Halaman', list(PAGES.values()), index=start)  # ?page=insight opens a page directly
-st.sidebar.markdown('---')
-st.sidebar.caption(f"Data: NYC TLC Yellow Taxi Jan–Des 2025. Hasil dari run pipeline `{meta['run']}` "
-                   '(Spark + MinIO + Neo4j), sama dengan laporan.')
 
 
 # ---------- page 1: overview ----------
