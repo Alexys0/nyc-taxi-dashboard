@@ -18,12 +18,27 @@ NYC = {'lat': 40.705, 'lon': -73.94}
 METHODS = {'sklearn_hgb': 'Model scikit-learn', 'spark_gbt': 'Model Spark MLlib',
            'last_hour': 'Baseline: jam sebelumnya', 'four_week_mean': 'Baseline: rata-rata 4 minggu',
            'last_week': 'Baseline: minggu lalu'}
-COLORS = {'Aktual': '#0E1726', 'Model scikit-learn': '#E0A800', 'Model Spark MLlib': '#24649E',
-          'Baseline: jam sebelumnya': '#5B6475', 'Baseline: rata-rata 4 minggu': '#A3ABB9',
-          'Baseline: minggu lalu': '#C9CED8'}
+YELLOW, BLUE, RED, INK = '#F2B705', '#4C9BE8', '#E5533D', '#22314A'
+COLORS = {'Aktual': '#F4F1EA', 'Model scikit-learn': YELLOW, 'Model Spark MLlib': BLUE,
+          'Baseline: jam sebelumnya': '#A3ABB9', 'Baseline: rata-rata 4 minggu': '#6B7487',
+          'Baseline: minggu lalu': '#566075'}
+TAXI = [INK, '#7A5C00', YELLOW, '#FFE38A']  # dark-to-yellow scale: quiet zones fade into the dark map
 AIRPORTS = {132: 'JFK Airport', 138: 'LaGuardia Airport'}
 
 st.set_page_config(page_title='NYC Taxi 2025 · Dashboard', page_icon='🚕', layout='wide')
+st.markdown(f"""<style>
+.block-container {{padding-top: 2.2rem}}
+.taxi-head {{background: {YELLOW}; color: #0E1726; border-radius: 12px 12px 0 0; padding: 14px 22px;
+             display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap}}
+.taxi-head b {{font-size: 1.7rem; letter-spacing: .12em}}
+.taxi-checker {{height: 14px; border-radius: 0 0 12px 12px; margin-bottom: 18px;
+                background: repeating-conic-gradient(#0E1726 0 25%, {YELLOW} 0 50%) 0 0 / 14px 14px}}
+[data-testid="stMetricValue"] {{color: {YELLOW}}}
+h1, h2 {{letter-spacing: .01em}}
+</style>
+<div class="taxi-head"><b>🚕 NYC TAXI 2025</b>
+<span>Yellow Taxi · prediksi satu jam ke depan · jaringan mobilitas antarzona</span></div>
+<div class="taxi-checker"></div>""", unsafe_allow_html=True)
 
 
 # ---------- formatting (Indonesian numbers) ----------
@@ -75,7 +90,7 @@ def load():
 def zone_map(zones, geo, column, title, height=520, **kwargs):
     fig = px.choropleth_map(zones, geojson=geo, locations='zone', color=column, hover_name='Zone',
                             hover_data={'zone': False, 'Borough': True, column: ':,.0f'},
-                            map_style='carto-positron', center=NYC, zoom=9.4, opacity=0.8, **kwargs)
+                            map_style='carto-darkmatter', center=NYC, zoom=9.4, opacity=0.85, **kwargs)
     fig.update_layout(title=title, coloraxis_colorbar=dict(title=None))
     return map_margin(style(fig, height))
 
@@ -106,11 +121,13 @@ d = load()
 meta, zones, metrics = d['meta'], d['zones'], d['metrics']
 best, hour = metrics.loc['sklearn_hgb', 'mae'], metrics.loc['last_hour', 'mae']
 
-st.sidebar.title('🚕 NYC Taxi 2025')
 PAGES = {'ringkasan': 'Ringkasan', 'prediksi': 'Prediksi Demand', 'jaringan': 'Jaringan Mobilitas',
          'insight': 'Insight Bisnis'}
-start = list(PAGES).index(st.query_params.get('page')) if st.query_params.get('page') in PAGES else 0
-page = st.sidebar.radio('Halaman', list(PAGES.values()), index=start)  # ?page=insight opens a page directly
+key = st.query_params.get('page') if st.query_params.get('page') in PAGES else 'ringkasan'  # ?page=insight opens a page
+key = st.segmented_control('Halaman', list(PAGES), default=key, format_func=PAGES.get,
+                           label_visibility='collapsed') or key  # clicking the active tab deselects it; stay put
+st.query_params['page'] = key
+page = PAGES[key]
 
 
 # ---------- page 1: overview ----------
@@ -129,22 +146,22 @@ if page == 'Ringkasan':
     with left:
         cap = float(zones.pickups_2025.quantile(0.95))
         st.plotly_chart(zone_map(zones, d['geo'], 'pickups_2025', 'Total pickup per zona, 2025',
-                                 color_continuous_scale='YlOrBr', range_color=(0, cap)))
+                                 color_continuous_scale=TAXI, range_color=(0, cap)))
         st.caption('Warna dibatasi pada persentil ke-95 supaya zona di luar Manhattan tetap terlihat.')
     with right:
         monthly = d['monthly'].assign(Bulan=lambda m: m.source_month.str[-2:])
         fig = px.bar(monthly, x='Bulan', y='clean_trips', title='Trip bersih per bulan',
-                     labels={'clean_trips': 'Trip'}, color_discrete_sequence=['#0E1726'])
+                     labels={'clean_trips': 'Trip'}, color_discrete_sequence=[YELLOW])
         st.plotly_chart(style(fig, 260))
         profile = d['profile'].groupby(['day_of_week', 'hour']).trips.sum().unstack()
         days = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min']
         fig = px.imshow(profile, labels=dict(x='Jam', y='Hari', color='Pickup/jam'), y=days,
-                        color_continuous_scale='YlOrBr', aspect='auto', title='Rata-rata pickup per jam (seluruh kota)')
+                        color_continuous_scale=TAXI, aspect='auto', title='Rata-rata pickup per jam (seluruh kota)')
         st.plotly_chart(style(fig, 260))
 
     city = d['daily_city']
     fig = px.line(city, x='date', y='trips', title='Pickup harian seluruh kota',
-                  labels={'date': '', 'trips': 'Pickup'}, color_discrete_sequence=['#24649E'])
+                  labels={'date': '', 'trips': 'Pickup'}, color_discrete_sequence=[YELLOW])
     st.plotly_chart(style(fig, 300))
 
 
@@ -208,7 +225,7 @@ elif page == 'Prediksi Demand':
         column = 'wape_sklearn' if metric.startswith('Error relatif') else 'mae_sklearn_hgb'
         cap = float(zones[column].quantile(0.9))
         fig = zone_map(zones, d['geo'], column, 'Error model scikit-learn per zona',
-                       height=400, color_continuous_scale='Reds', range_color=(0, cap))
+                       height=400, color_continuous_scale=[INK, RED], range_color=(0, cap))
         st.plotly_chart(fig)
         if column == 'wape_sklearn':
             st.caption('Zona sepi terlihat merah karena volumenya kecil: meleset 1 pickup sudah besar secara persen.')
@@ -219,7 +236,7 @@ elif page == 'Prediksi Demand':
     fig = px.line(long, x='date', y='MAE', color='Metode', color_discrete_map=COLORS,
                   title='Error harian (garis putus: hari libur federal)', labels={'date': ''})
     for day in holidays():
-        fig.add_vline(x=day, line_dash='dot', line_color='#C0392B')
+        fig.add_vline(x=day, line_dash='dot', line_color=RED)
     st.plotly_chart(style(fig, 360))
     top = daily.nlargest(6, 'sklearn_hgb')[['date', 'sklearn_hgb', 'last_hour', 'last_week']]
     top.columns = ['Tanggal', 'MAE model', 'MAE jam sebelumnya', 'MAE minggu lalu']
@@ -251,26 +268,26 @@ elif page == 'Jaringan Mobilitas':
     if view.startswith('Arus'):
         limit = float(np.nanpercentile(np.abs(mapped.net_flow), 98))
         fig = zone_map(mapped, d['geo'], 'net_flow', f'Arus bersih per zona ({period})',
-                       color_continuous_scale='RdBu', range_color=(-limit, limit), color_continuous_midpoint=0)
+                       color_continuous_scale=[RED, INK, BLUE], range_color=(-limit, limit), color_continuous_midpoint=0)
         st.caption('Merah = lebih banyak berangkat daripada datang (pengirim). Biru = lebih banyak datang (penerima).')
     elif view == 'Keberangkatan':
         fig = zone_map(mapped, d['geo'], 'departures', f'Keberangkatan per zona ({period})',
-                       color_continuous_scale='YlOrBr', range_color=(0, float(mapped.departures.quantile(0.95))))
+                       color_continuous_scale=TAXI, range_color=(0, float(mapped.departures.quantile(0.95))))
     elif view == 'Kedatangan':
         fig = zone_map(mapped, d['geo'], 'arrivals', f'Kedatangan per zona ({period})',
-                       color_continuous_scale='Blues', range_color=(0, float(mapped.arrivals.quantile(0.95))))
+                       color_continuous_scale=[INK, BLUE], range_color=(0, float(mapped.arrivals.quantile(0.95))))
     elif view.startswith('PageRank'):
         column = {'Tahunan': 'pagerank', 'Weekday': 'pagerank_weekday', 'Weekend': 'pagerank_weekend'}[period]
         fig = px.choropleth_map(mapped, geojson=d['geo'], locations='zone', color=column, hover_name='Zone',
-                                map_style='carto-positron', center=NYC, zoom=9.4, opacity=0.8,
+                                map_style='carto-darkmatter', center=NYC, zoom=9.4, opacity=0.8,
                                 color_continuous_scale='Viridis', title=f'PageRank ({period})')
         fig = map_margin(style(fig, 520))
     else:
         mapped['Komunitas'] = mapped.community.astype('Int64').astype(str)
         fig = px.choropleth_map(mapped, geojson=d['geo'], locations='zone', color='Komunitas', hover_name='Zone',
-                                map_style='carto-positron', center=NYC, zoom=9.4, opacity=0.8,
+                                map_style='carto-darkmatter', center=NYC, zoom=9.4, opacity=0.8,
                                 title='Komunitas Louvain (graph tahunan)',
-                                color_discrete_sequence=['#24649E', '#E0A800', '#C0392B', '#8A94A6', '#5B6475'])
+                                color_discrete_sequence=[BLUE, YELLOW, RED, '#8A94A6', '#5FB49C'])
         fig = map_margin(style(fig, 520))
     st.plotly_chart(fig)
 
@@ -293,8 +310,8 @@ elif page == 'Jaringan Mobilitas':
         fig = px.bar(share, x='Persen', y='Bandara', color='Tujuan', orientation='h',
                      title=f'Ke mana trip dari bandara berakhir ({period})', labels={'Persen': '% trip'},
                      category_orders={'Tujuan': ['Manhattan', 'Queens', 'Brooklyn', 'Bronx', 'Staten Island', 'EWR']},
-                     color_discrete_map={'Manhattan': '#E0A800', 'Queens': '#24649E', 'Brooklyn': '#5B6475',
-                                         'Bronx': '#A3ABB9', 'Staten Island': '#C9CED8', 'EWR': '#0E1726'})
+                     color_discrete_map={'Manhattan': YELLOW, 'Queens': BLUE, 'Brooklyn': '#8A94A6',
+                                         'Bronx': '#5B6475', 'Staten Island': '#3E4A5E', 'EWR': '#F4F1EA'})
         st.plotly_chart(style(fig, 330))
 
     st.markdown('**Zona penting yang paling naik dan turun peringkat PageRank-nya saat weekend** '
@@ -339,11 +356,11 @@ else:
     daily = d['daily_mae'].loc[lambda x: x.hours >= 20]
     top = daily.nlargest(5, 'sklearn_hgb')
     fig = px.line(daily, x='date', y=['sklearn_hgb', 'last_week'], labels={'date': '', 'value': 'MAE'},
-                  color_discrete_sequence=['#E0A800', '#C9CED8'])
+                  color_discrete_sequence=[YELLOW, '#6B7487'])
     fig.for_each_trace(lambda t: t.update(name=METHODS[t.name]))
     fig.add_trace(go.Scatter(x=top.date, y=top.sklearn_hgb, mode='markers+text', name='Hari tersulit',
                              text=top.date.dt.strftime('%d %b'), textposition='top center',
-                             marker=dict(size=10, color='#C0392B')))
+                             marker=dict(size=10, color=RED)))
     st.plotly_chart(style(fig, 330))
     thanks = daily.set_index('date').loc[pd.Timestamp('2025-11-27')]
     st.markdown('**Arti bisnis.** Error tertinggi muncul sesudah Halloween, malam sebelum Thanksgiving, malam '
@@ -360,7 +377,7 @@ else:
             f"{num(row.out_strength)} berangkat · {num(row.in_strength)} datang per tahun")
     shares = meta['airport_manhattan_share_pct']
     fig = px.bar(airports.reset_index(), x='Zone', y=['out_strength', 'in_strength'], barmode='group',
-                 labels={'value': 'Trip per tahun', 'Zone': ''}, color_discrete_sequence=['#C0392B', '#24649E'])
+                 labels={'value': 'Trip per tahun', 'Zone': ''}, color_discrete_sequence=[RED, BLUE])
     fig.for_each_trace(lambda t: t.update(name={'out_strength': 'Berangkat', 'in_strength': 'Datang'}[t.name]))
     right.plotly_chart(style(fig, 300))
     st.markdown(f"**Arti bisnis.** Dari JFK jauh lebih banyak taksi berangkat membawa penumpang daripada yang datang. "
