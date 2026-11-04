@@ -140,7 +140,7 @@ def network_map(edges, zones, count, period):
                                     marker=dict(size=4 + 14 * np.sqrt(group[column] / zones[column].max()),
                                                 color=COMMUNITY[str(community)]),
                                     text=group.Zone, hovertemplate='%{text}<extra></extra>'))
-    fig.update_layout(map=dict(style='carto-darkmatter', center=dict(lat=40.72, lon=-73.89), zoom=10.9),
+    fig.update_layout(map=dict(style='carto-darkmatter', center=dict(lat=40.73, lon=-73.90), zoom=10.5),
                       title=f'{count} koridor terbesar ({period})')
     return map_margin(style(fig, 560))
 
