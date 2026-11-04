@@ -22,6 +22,7 @@ YELLOW, BLUE, RED, INK = '#F2B705', '#4C9BE8', '#E5533D', '#22314A'
 COLORS = {'Aktual': '#F4F1EA', 'Model scikit-learn': YELLOW, 'Model Spark MLlib': BLUE,
           'Baseline: jam sebelumnya': '#A3ABB9', 'Baseline: rata-rata 4 minggu': '#6B7487',
           'Baseline: minggu lalu': '#566075'}
+COMMUNITY = {'0': BLUE, '1': YELLOW, '2': RED, '3': '#8A94A6', '4': '#5FB49C'}
 TAXI = [INK, '#7A5C00', YELLOW, '#FFE38A']  # dark-to-yellow scale: quiet zones fade into the dark map
 AIRPORTS = {132: 'JFK Airport', 138: 'LaGuardia Airport'}
 
@@ -78,6 +79,11 @@ def load():
                                      100 * zones.mae_sklearn_hgb * 1292 / zones.test_trips.replace(0, np.nan), np.nan)
     predictions = pd.read_parquet(DATA / 'predictions.parquet')
     daily_mae = pd.read_csv(DATA / 'daily_mae.csv', parse_dates=['date'])
+    # Mean vertex of each zone's largest ring: close enough to place a node on the map.
+    nodes = {int(f['id']): np.mean(max((poly[0] for poly in f['geometry']['coordinates']), key=len), axis=0)
+             for f in geo['features']}
+    zones['lon'] = zones.zone.map(lambda z: nodes[z][0])
+    zones['lat'] = zones.zone.map(lambda z: nodes[z][1])
     return {'meta': meta, 'geo': geo, 'zones': zones, 'predictions': predictions,
             'monthly': pd.read_csv(DATA / 'monthly.csv'),
             'daily_city': pd.read_csv(DATA / 'daily_city.csv', parse_dates=['date']),
@@ -113,6 +119,32 @@ def period_flows(edges, zones, period):
     return edges, frame
 
 
+def network_map(edges, zones, count, period):
+    """Largest corridors as lines between zone centres; node size = PageRank, colour = Louvain community."""
+    pairs = edges.loc[edges.origin != edges.destination].assign(
+        a=lambda e: e[['origin', 'destination']].min(axis=1), b=lambda e: e[['origin', 'destination']].max(axis=1))
+    pairs = pairs.groupby(['a', 'b']).trips.sum().nlargest(count).reset_index()
+    place = zones.set_index('zone')
+    fig = go.Figure()
+    for tier, width, opacity in [(0, 1, 0.35), (1, 2, 0.5), (2, 4, 0.8)]:
+        lon, lat = [], []
+        for row in pairs.loc[pd.qcut(pairs.trips.rank(method='first'), 3, labels=False) == tier].itertuples():
+            lon += [place.lon[row.a], place.lon[row.b], None]
+            lat += [place.lat[row.a], place.lat[row.b], None]
+        fig.add_trace(go.Scattermap(lon=lon, lat=lat, mode='lines', hoverinfo='skip', showlegend=False,
+                                    line=dict(width=width, color='#E8ECF2'), opacity=opacity))
+    used = place.loc[sorted(set(pairs.a) | set(pairs.b))]
+    column = {'Tahunan': 'pagerank', 'Weekday': 'pagerank_weekday', 'Weekend': 'pagerank_weekend'}[period]
+    for community, group in used.groupby('community'):
+        fig.add_trace(go.Scattermap(lon=group.lon, lat=group.lat, mode='markers', name=f'Komunitas {community}',
+                                    marker=dict(size=4 + 14 * np.sqrt(group[column] / zones[column].max()),
+                                                color=COMMUNITY[str(community)]),
+                                    text=group.Zone, hovertemplate='%{text}<extra></extra>'))
+    fig.update_layout(map=dict(style='carto-darkmatter', center=dict(lat=40.72, lon=-73.89), zoom=10.9),
+                      title=f'{count} koridor terbesar ({period})')
+    return map_margin(style(fig, 560))
+
+
 def holidays():
     return USFederalHolidayCalendar().holidays('2025-11-01', '2025-12-31')
 
@@ -121,7 +153,7 @@ d = load()
 meta, zones, metrics = d['meta'], d['zones'], d['metrics']
 best, hour = metrics.loc['sklearn_hgb', 'mae'], metrics.loc['last_hour', 'mae']
 
-PAGES = {'ringkasan': 'Ringkasan', 'prediksi': 'Prediksi Demand', 'jaringan': 'Jaringan Mobilitas',
+PAGES = {'ringkasan': 'Ringkasan', 'prediksi': 'Prediksi Demand', 'jaringan': 'Graph Analytics',
          'insight': 'Insight Bisnis'}
 key = st.query_params.get('page') if st.query_params.get('page') in PAGES else 'ringkasan'  # ?page=insight opens a page
 key = st.segmented_control('Halaman', list(PAGES), default=key, format_func=PAGES.get,
@@ -247,8 +279,8 @@ elif page == 'Prediksi Demand':
 
 # ---------- page 3: graph ----------
 
-elif page == 'Jaringan Mobilitas':
-    st.title('Jaringan perjalanan antarzona')
+elif page == 'Graph Analytics':
+    st.title('Graph analytics: jaringan perjalanan antarzona')
     st.markdown('Setiap zona adalah node; setiap pasangan asal → tujuan adalah edge berarah dengan bobot jumlah trip. '
                 f"Graph dimuat ke Neo4j dan {'semua 6 pemeriksaan Cypher cocok' if meta['neo4j_checks_passed'] else 'ada pemeriksaan yang gagal'} "
                 'dengan hasil NetworkX.')
@@ -286,8 +318,7 @@ elif page == 'Jaringan Mobilitas':
         mapped['Komunitas'] = mapped.community.astype('Int64').astype(str)
         fig = px.choropleth_map(mapped, geojson=d['geo'], locations='zone', color='Komunitas', hover_name='Zone',
                                 map_style='carto-darkmatter', center=NYC, zoom=9.4, opacity=0.8,
-                                title='Komunitas Louvain (graph tahunan)',
-                                color_discrete_sequence=[BLUE, YELLOW, RED, '#8A94A6', '#5FB49C'])
+                                title='Komunitas Louvain (graph tahunan)', color_discrete_map=COMMUNITY)
         fig = map_margin(style(fig, 520))
     st.plotly_chart(fig)
 
@@ -327,6 +358,73 @@ elif page == 'Jaringan Mobilitas':
     up.dataframe(show(ranks.assign(shift=ranks.weekday - ranks.weekend).nlargest(8, 'shift')), hide_index=True)
     down.markdown('Turun saat weekend')
     down.dataframe(show(ranks.assign(shift=ranks.weekday - ranks.weekend).nsmallest(8, 'shift')), hide_index=True)
+
+    st.header('Analitik graph')
+    c1, c2, c3, c4 = st.columns(4)
+    kpi(c1, 'Node', num(g['nodes']), 'zona taksi')
+    kpi(c2, 'Reciprocity', f"{num(100 * g['reciprocity'], 1)}%", 'edge yang punya arah kebalikannya')
+    kpi(c3, 'Trip dalam zona', f"{num(100 * g['self_loop_trips'] / g['total_trips'], 1)}%", 'self-loop, asal = tujuan')
+    kpi(c4, 'Modularity', num(g['modularity'], 3), f"{g['communities']} komunitas Louvain")
+
+    st.subheader('Peta jaringan')
+    count = st.slider('Jumlah koridor yang digambar', 20, 300, 100, 20)
+    st.plotly_chart(network_map(edges, zones, count, period))
+    st.caption('Garis = dua arah digabung, makin tebal makin banyak trip; trip dalam zona tidak digambar. '
+               'Lingkaran = zona, ukuran menurut PageRank, warna menurut komunitas.')
+
+    st.subheader('Peringkat sentralitas (graph tahunan)')
+    measures = {'PageRank': ('pagerank', 'Zona yang sering menjadi tujuan, terutama dari zona yang juga penting.'),
+                'HITS authority': ('authority', 'Zona yang banyak menerima trip dari zona asal utama.'),
+                'HITS hub': ('hub', 'Zona yang banyak mengirim trip ke zona tujuan utama.'),
+                'Kedatangan (in-strength)': ('in_strength', 'Jumlah trip yang berakhir di zona.'),
+                'Keberangkatan (out-strength)': ('out_strength', 'Jumlah trip yang berangkat dari zona.')}
+    measure = st.selectbox('Ukuran', list(measures))
+    column, meaning = measures[measure]
+    st.caption(meaning)
+    fig = px.bar(zones.nlargest(15, column), x=column, y='Zone', orientation='h', color='Borough',
+                 labels={column: measure, 'Zone': ''},
+                 color_discrete_map={'Manhattan': YELLOW, 'Queens': BLUE, 'Brooklyn': '#8A94A6', 'Bronx': '#5B6475',
+                                     'Staten Island': '#3E4A5E', 'EWR': '#F4F1EA'})
+    fig.update_layout(yaxis=dict(categoryorder='total ascending'))
+    st.plotly_chart(style(fig, 480))
+
+    st.subheader('Komunitas Louvain (graph tahunan)')
+    member = zones.set_index('zone').community
+    links = d['edges'].assign(asal=lambda e: e.origin.map(member), tujuan=lambda e: e.destination.map(member))
+    matrix = links.groupby(['asal', 'tujuan']).trips.sum().unstack(fill_value=0)
+    rows = [{'Komunitas': c, 'Zona': len(group), 'Borough utama': group.Borough.mode()[0],
+             'Zona teratas (PageRank)': ', '.join(group.nlargest(3, 'pagerank').Zone),
+             'Trip berangkat': num(matrix.loc[c].sum()) if c in matrix.index else '0'}
+            for c, group in zones.groupby('community')]
+    st.dataframe(pd.DataFrame(rows), hide_index=True)
+    st.caption('Komunitas 3 dan 4 masing-masing hanya satu zona yang tidak memiliki trip pada graph ini.')
+    share = 100 * matrix.div(matrix.sum(axis=1), axis=0)
+    fig = px.imshow(share, text_auto='.1f', color_continuous_scale=[INK, '#A67C00'], aspect='auto', range_color=(0, 100),
+                    labels=dict(x='Komunitas tujuan', y='Komunitas asal', color='% trip'),
+                    title='Ke komunitas mana trip dari setiap komunitas berakhir (%)')
+    fig.update_traces(textfont=dict(color='#FFFFFF', size=15))
+    fig.update_layout(xaxis=dict(type='category'), yaxis=dict(type='category'))
+    st.plotly_chart(style(fig, 360))
+
+    st.subheader(f'Jelajahi satu zona ({period})')
+    by_rank = zones.sort_values('pagerank', ascending=False).Zone.tolist()
+    focus = st.selectbox('Zona (urut menurut PageRank tahunan)', by_rank, index=by_rank.index('JFK Airport'))
+    row = flows.loc[flows.Zone == focus].iloc[0]
+    c1, c2, c3, c4 = st.columns(4)
+    kpi(c1, 'Peringkat PageRank', f'#{by_rank.index(focus) + 1}', 'dari 263 zona, graph tahunan')
+    kpi(c2, 'Berangkat', num(row.departures), 'trip')
+    kpi(c3, 'Datang', num(row.arrivals), 'trip')
+    kpi(c4, 'Arus bersih', num(row.net_flow), 'datang − berangkat')
+    neighbours = edges.loc[edges.origin != edges.destination]
+    left, right = st.columns(2)
+    for place, side, other, title, color in [(left, 'origin', 'destination', 'Tujuan terbesar dari zona ini', YELLOW),
+                                             (right, 'destination', 'origin', 'Asal terbesar ke zona ini', BLUE)]:
+        top = neighbours.loc[neighbours[side] == row.zone].groupby(other).trips.sum().nlargest(8).reset_index()
+        top['Zona'] = top[other].map(names)
+        fig = px.bar(top, x='trips', y='Zona', orientation='h', title=title, labels={'trips': 'Trip', 'Zona': ''},
+                     color_discrete_sequence=[color])
+        fig.update_layout(yaxis=dict(autorange='reversed'))
+        place.plotly_chart(style(fig, 360))
 
 
 # ---------- page 4: business insights ----------

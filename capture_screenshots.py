@@ -19,7 +19,9 @@ SHOTS = [
     ('dashboard_prediksi_atas.png', 'prediksi', 'Prediksi pickup satu jam', 'Error menurut tingkat'),
     ('dashboard_prediksi_bawah.png', 'prediksi', 'Error menurut tingkat', None),
     ('dashboard_jaringan_peta.png', 'jaringan', 'Jaringan perjalanan', '10 koridor terbesar'),
-    ('dashboard_jaringan_tabel.png', 'jaringan', '10 koridor terbesar', None),
+    ('dashboard_jaringan_tabel.png', 'jaringan', '10 koridor terbesar', 'Analitik graph'),
+    ('dashboard_graph_jaringan.png', 'jaringan', 'Analitik graph', 'Peringkat sentralitas'),
+    ('dashboard_graph_analitik.png', 'jaringan', 'Peringkat sentralitas', None),
     ('dashboard_insight_ml.png', 'insight', '1 · Prediksi cukup andal', '3 · Bandara'),
     ('dashboard_insight_graph.png', 'insight', '3 · Bandara', None),
 ]

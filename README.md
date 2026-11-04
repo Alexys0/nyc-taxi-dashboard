@@ -7,7 +7,7 @@ Halaman:
 
 1. **Ringkasan**: volume trip, peta pickup per zona, pola hari × jam.
 2. **Prediksi Demand**: akurasi model vs baseline, eksplorasi aktual vs prediksi per zona, error per tingkat keramaian dan per hari.
-3. **Jaringan Mobilitas**: arus bersih, PageRank, komunitas, koridor terbesar, tujuan trip bandara, pergeseran weekend.
+3. **Graph Analytics**: arus bersih, peta jaringan, PageRank, HITS, komunitas Louvain, koridor terbesar, tujuan trip bandara, pergeseran weekend, jelajah satu zona.
 4. **Insight Bisnis**: empat temuan dengan rekomendasi.
 
 ## Sumber data
